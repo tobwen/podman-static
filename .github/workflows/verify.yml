@@ -22,4 +22,4 @@ jobs:
       run: make images test
 
     - name: Build amd64 binaries and tar archive
-      run: make clean tar
+      run: make clean singlearch-tar
