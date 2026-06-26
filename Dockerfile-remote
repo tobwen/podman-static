@@ -3,13 +3,13 @@ FROM golang:1.25-alpine3.22 AS podmanbuildbase
 RUN apk add --update --no-cache git make gcc pkgconf musl-dev \
 	btrfs-progs btrfs-progs-dev libassuan-dev lvm2-dev device-mapper \
 	glib-static libc-dev gpgme-dev protobuf-dev protobuf-c-dev \
-	libseccomp-dev libseccomp-static libselinux-dev ostree-dev openssl iptables \
+	libseccomp-dev libseccomp-static libselinux-dev ostree-dev openssl nftables \
 	bash go-md2man
 
 # podman remote
 FROM podmanbuildbase AS podman-remote
 RUN apk add --update --no-cache curl
-ARG PODMAN_VERSION=v5.8.4
+ARG PODMAN_VERSION=v6.0.0
 RUN git clone -c advice.detachedHead=false --depth=1 --branch=${PODMAN_VERSION} https://github.com/containers/podman src/github.com/containers/podman
 WORKDIR $GOPATH/src/github.com/containers/podman
 RUN set -eux; \

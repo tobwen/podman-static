@@ -1,24 +1,28 @@
 # Download gpg
-FROM alpine:3.22 AS gpg
+FROM alpine:3.24 AS gpg
 RUN apk add --no-cache gnupg
 
 
 # golang build base
-FROM golang:1.25-alpine3.22 AS golangbuildbase
+FROM golang:1.26-alpine3.24 AS golangbuildbase
 RUN apk add --update --no-cache git make gcc pkgconf musl-dev \
 	btrfs-progs btrfs-progs-dev libassuan-dev lvm2-dev device-mapper \
 	glib-static libc-dev gpgme-dev protobuf-dev protobuf-c-dev \
-	libseccomp-dev libseccomp-static libselinux-dev ostree-dev openssl iptables \
+	libseccomp-dev libseccomp-static libselinux-dev ostree-dev openssl nftables \
 	bash go-md2man
+
+
+FROM rust:1.96-alpine3.24 AS rustbase
+RUN apk add --update --no-cache git make musl-dev
 
 
 # runc
 FROM golangbuildbase AS runc
-ARG RUNC_VERSION=v1.4.3
+ARG RUNC_VERSION=v1.5.0
 RUN git clone -c 'advice.detachedHead=false' --depth=1 --branch ${RUNC_VERSION} https://github.com/opencontainers/runc src/github.com/opencontainers/runc
 WORKDIR $GOPATH/src/github.com/opencontainers/runc
 RUN set -eux; \
-	make static EXTRA_LDFLAGS="-s -w"; \
+	make static EXTRA_LDFLAGS="-s -w" BUILDTAGS='seccomp'; \
 	make install; \
 	runc --version; \
 	ldd /usr/local/sbin/runc
@@ -27,7 +31,7 @@ RUN set -eux; \
 # podman (without systemd support)
 FROM golangbuildbase AS podman
 RUN apk add --update --no-cache tzdata curl
-ARG PODMAN_VERSION=v5.8.4
+ARG PODMAN_VERSION=v6.0.0
 ARG PODMAN_BUILDTAGS='seccomp selinux apparmor exclude_graphdriver_devicemapper containers_image_openpgp'
 ARG PODMAN_CGO=1
 RUN git clone -c 'advice.detachedHead=false' --depth=1 --branch ${PODMAN_VERSION} https://github.com/containers/podman src/github.com/containers/podman
@@ -72,14 +76,10 @@ RUN set -ex; \
 	bin/conmon --help >/dev/null
 
 
-FROM rust:1.91-alpine3.22 AS rustbase
-RUN apk add --update --no-cache git make musl-dev
-
-
 # netavark
 FROM rustbase AS netavark
 RUN apk add --update --no-cache protoc
-ARG NETAVARK_VERSION=v1.17.2
+ARG NETAVARK_VERSION=v2.0.0
 RUN git clone -c 'advice.detachedHead=false' --depth=1 --branch=$NETAVARK_VERSION https://github.com/containers/netavark
 WORKDIR /netavark
 ENV RUSTFLAGS='-C link-arg=-s'
@@ -88,7 +88,7 @@ RUN cargo build --release
 
 # aardvark-dns
 FROM rustbase AS aardvark-dns
-ARG AARDVARKDNS_VERSION=v1.17.1
+ARG AARDVARKDNS_VERSION=v2.0.0
 RUN git clone -c 'advice.detachedHead=false' --depth=1 --branch=$AARDVARKDNS_VERSION https://github.com/containers/aardvark-dns
 WORKDIR /aardvark-dns
 ENV RUSTFLAGS='-C link-arg=-s'
@@ -105,9 +105,8 @@ WORKDIR /passt
 RUN set -ex; \
 	make static; \
 	mkdir bin; \
-	cp pasta bin/; \
-	[ ! -f pasta.avx2 ] || cp pasta.avx2 bin/; \
-	! ldd /passt/bin/pasta
+	mv passt pasta bin/; \
+	[ ! -f pasta.avx2 ] || mv pasta.avx2 bin/
 
 
 # fuse-overlayfs (derived from https://github.com/containers/fuse-overlayfs/blob/master/Dockerfile.static)
@@ -124,7 +123,7 @@ RUN set -ex; \
 	touch /dev/fuse; \
 	ninja install; \
 	fusermount3 -V
-ARG FUSEOVERLAYFS_VERSION=v1.16
+ARG FUSEOVERLAYFS_VERSION=v1.17
 RUN git clone -c 'advice.detachedHead=false' --depth=1 --branch=$FUSEOVERLAYFS_VERSION https://github.com/containers/fuse-overlayfs /fuse-overlayfs
 WORKDIR /fuse-overlayfs
 RUN set -ex; \
@@ -158,8 +157,7 @@ RUN set -ex; \
 	./autogen.sh; \
 	./configure --disable-systemd --enable-embedded-yajl; \
 	make LDFLAGS='-static-libgcc -all-static' EXTRA_LDFLAGS='-s -w'; \
-	make install; \
-	! ldd /usr/local/bin/crun
+	make install
 
 
 # Build podman base image
@@ -184,7 +182,7 @@ RUN set -ex; \
 	mkdir -m1777 /.local /.config /.cache; \
 	podman --help >/dev/null; \
 	/usr/local/lib/podman/conmon --help >/dev/null
-ENV _CONTAINERS_USERNS_CONFIGURED=""
+ENV _CONTAINERS_USERNS_CONFIGURED="" HOME=/podman
 
 # Build rootless podman base image (without OCI runtime)
 FROM podmanbase AS rootlesspodmanbase
@@ -200,7 +198,7 @@ COPY conf/crun-containers.conf /etc/containers/containers.conf
 
 # Build podman image with all binaries
 FROM rootlesspodmanbase AS podmanall
-RUN apk add --no-cache iptables ip6tables
+RUN apk add --no-cache nftables
 COPY --from=catatonit /catatonit/catatonit /usr/local/lib/podman/catatonit
 COPY --from=runc   /usr/local/sbin/runc   /usr/local/bin/runc
 COPY --from=aardvark-dns /aardvark-dns/target/release/aardvark-dns /usr/local/lib/podman/aardvark-dns
