@@ -4,7 +4,7 @@ RUN apk add --no-cache gnupg
 
 
 # golang build base
-FROM golang:1.26-alpine3.24 AS golangbuildbase
+FROM golang:1.27.0-alpine3.24 AS golangbuildbase
 RUN apk add --update --no-cache git make gcc pkgconf musl-dev \
 	btrfs-progs btrfs-progs-dev libassuan-dev lvm2-dev device-mapper \
 	glib-static libc-dev gpgme-dev protobuf-dev protobuf-c-dev \
@@ -12,13 +12,13 @@ RUN apk add --update --no-cache git make gcc pkgconf musl-dev \
 	bash go-md2man
 
 
-FROM rust:1.96-alpine3.24 AS rustbase
+FROM rust:1.96.1-alpine3.24 AS rustbase
 RUN apk add --update --no-cache git make musl-dev
 
 
 # runc
 FROM golangbuildbase AS runc
-ARG RUNC_VERSION=v1.5.0
+ARG RUNC_VERSION=v1.5.1
 RUN git clone -c 'advice.detachedHead=false' --depth=1 --branch ${RUNC_VERSION} https://github.com/opencontainers/runc src/github.com/opencontainers/runc
 WORKDIR $GOPATH/src/github.com/opencontainers/runc
 RUN set -eux; \
@@ -31,15 +31,16 @@ RUN set -eux; \
 # podman (without systemd support)
 FROM golangbuildbase AS podman
 RUN apk add --update --no-cache tzdata curl
-ARG PODMAN_VERSION=v6.0.0
+ARG PODMAN_VERSION=v6.1.0
 ARG PODMAN_BUILDTAGS='seccomp selinux apparmor exclude_graphdriver_devicemapper containers_image_openpgp'
 ARG PODMAN_CGO=1
-RUN git clone -c 'advice.detachedHead=false' --depth=1 --branch ${PODMAN_VERSION} https://github.com/containers/podman src/github.com/containers/podman
+RUN git clone -c 'advice.detachedHead=false' --depth=1 --branch ${PODMAN_VERSION} https://github.com/podman-container-tools/podman src/github.com/containers/podman
 WORKDIR $GOPATH/src/github.com/containers/podman
 RUN set -eux; \
-	COMMON_VERSION=$(grep -Eom1 'github.com/containers/common [^ ]+' go.mod | sed 's!github.com/containers/common !!'); \
+	COMMON_VERSION=$(grep -Eom1 '(github.com/containers/common|go.podman.io/common) [^ ]+' go.mod | awk '{print $2}' | sed 's/^v//'); \
 	mkdir -p /etc/containers; \
-	curl -fsSL "https://raw.githubusercontent.com/containers/common/${COMMON_VERSION}/pkg/seccomp/seccomp.json" > /etc/containers/seccomp.json
+	curl -fsSL "https://raw.githubusercontent.com/containers/common/v${COMMON_VERSION}/pkg/seccomp/seccomp.json" > /etc/containers/seccomp.json || \
+	curl -fsSL "https://raw.githubusercontent.com/containers/common/main/pkg/seccomp/seccomp.json" > /etc/containers/seccomp.json
 RUN set -ex; \
 	export CGO_ENABLED=$PODMAN_CGO; \
 	make bin/podman LDFLAGS_PODMAN="-s -w -extldflags '-static'" BUILDTAGS='${PODMAN_BUILDTAGS}'; \
@@ -48,7 +49,7 @@ RUN set -ex; \
 	! ldd /usr/local/bin/podman
 RUN set -ex; \
 # overwrites the default bin directory so quadlet looks for the podman binary in /usr/local/bin
-	export LDFLAGS_QUADLET="-X github.com/containers/podman/v5/pkg/systemd/quadlet._binDir=/usr/local/bin"; \
+	export LDFLAGS_QUADLET="-X go.podman.io/podman/v6/pkg/systemd/quadlet._binDir=/usr/local/bin"; \
 	CGO_ENABLED=0 make bin/quadlet LDFLAGS_PODMAN="-s -w -extldflags '-static' ${LDFLAGS_QUADLET}" BUILDTAGS='${PODMAN_BUILDTAGS}'; \
 	mkdir -p /usr/local/libexec/podman; \
 	mv bin/quadlet /usr/local/libexec/podman/quadlet; \
@@ -79,7 +80,7 @@ RUN set -ex; \
 # netavark
 FROM rustbase AS netavark
 RUN apk add --update --no-cache protoc
-ARG NETAVARK_VERSION=v2.0.0
+ARG NETAVARK_VERSION=v2.1.0
 RUN git clone -c 'advice.detachedHead=false' --depth=1 --branch=$NETAVARK_VERSION https://github.com/containers/netavark
 WORKDIR /netavark
 ENV RUSTFLAGS='-C link-arg=-s'
@@ -100,7 +101,7 @@ FROM golangbuildbase AS passt
 WORKDIR /
 RUN apk add --update --no-cache autoconf automake meson ninja linux-headers libcap-static libcap-dev clang llvm coreutils
 ARG PASST_VERSION=2026_06_11.a9c61ff
-RUN git clone -c 'advice.detachedHead=false' --depth=1 --branch=$PASST_VERSION git://passt.top/passt
+RUN git clone -c 'advice.detachedHead=false' --depth=1 --branch=$PASST_VERSION https://passt.top/passt
 WORKDIR /passt
 RUN set -ex; \
 	make static; \
@@ -150,7 +151,7 @@ RUN set -ex; \
 # crun
 FROM golangbuildbase AS crun
 RUN apk add --update --no-cache autoconf automake argp-standalone libtool libcap-dev libcap-static json-c-dev
-ARG CRUN_VERSION=1.28
+ARG CRUN_VERSION=1.29.1
 RUN git clone -c 'advice.detachedHead=false' --depth=1 --branch ${CRUN_VERSION} https://github.com/containers/crun src/github.com/containers/crun
 WORKDIR $GOPATH/src/github.com/containers/crun
 RUN set -ex; \
@@ -161,7 +162,7 @@ RUN set -ex; \
 
 
 # Build podman base image
-FROM alpine:3.22 AS podmanbase
+FROM alpine:3.24 AS podmanbase
 LABEL maintainer="Max Goltzsche <max.goltzsche@gmail.com>"
 RUN apk add --no-cache tzdata ca-certificates
 COPY --from=conmon /conmon/bin/conmon /usr/local/lib/podman/conmon

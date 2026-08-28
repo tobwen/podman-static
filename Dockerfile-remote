@@ -1,5 +1,5 @@
 # podman build base
-FROM golang:1.25-alpine3.22 AS podmanbuildbase
+FROM golang:1.27.0-alpine3.24 AS podmanbuildbase
 RUN apk add --update --no-cache git make gcc pkgconf musl-dev \
 	btrfs-progs btrfs-progs-dev libassuan-dev lvm2-dev device-mapper \
 	glib-static libc-dev gpgme-dev protobuf-dev protobuf-c-dev \
@@ -9,8 +9,8 @@ RUN apk add --update --no-cache git make gcc pkgconf musl-dev \
 # podman remote
 FROM podmanbuildbase AS podman-remote
 RUN apk add --update --no-cache curl
-ARG PODMAN_VERSION=v6.0.0
-RUN git clone -c advice.detachedHead=false --depth=1 --branch=${PODMAN_VERSION} https://github.com/containers/podman src/github.com/containers/podman
+ARG PODMAN_VERSION=v6.1.0
+RUN git clone -c advice.detachedHead=false --depth=1 --branch=${PODMAN_VERSION} https://github.com/podman-container-tools/podman src/github.com/containers/podman
 WORKDIR $GOPATH/src/github.com/containers/podman
 RUN set -eux; \
 	make bin/podman-remote LDFLAGS_PODMAN="-s -w -extldflags '-static'"; \
@@ -25,7 +25,7 @@ RUN set -eux; \
 	install -Dm644 -t /comp/zsh/site-functions/ completions/zsh/_podman-remote; \
 	install -Dm644 -t /comp/fish/vendor_completions.d/ completions/fish/podman-remote.fish
 
-FROM alpine:3.22
+FROM alpine:3.24
 COPY --from=podman-remote /usr/local/bin /usr/local/bin
 COPY --from=podman-remote /comp /usr/local/share
 RUN adduser -D podman-remote -h /podman -u 1000
