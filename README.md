@@ -75,11 +75,9 @@ For more information see [podman's rootless installation instructions](https://g
 #### Additional binaries
 
 The following binaries should be installed on your host:
-* `iptables`
+* `nftables` (with `iptables-nft` wrapper if `iptables` compatibility is needed)
 * `nsenter`
-* `uidmap` (for rootless mode)
-
-[nftables](https://netfilter.org/projects/nftables/) (with or without optional iptables-nft wrapper) to be included in the future [WIP](https://github.com/containers/netavark/pull/883).  
+* `shadow` / `shadow-utils` providing `newuidmap` and `newgidmap` (for rootless mode, package `uidmap` on Debian/Ubuntu)  
 
 #### UID/GID mapping
 
