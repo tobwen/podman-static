@@ -1,7 +1,7 @@
 # podman binaries and container images ![GitHub workflow badge](https://github.com/mgoltzsche/podman-static/workflows/Release/badge.svg)
 
 This project provides alpine-based podman container images and statically linked (rootless) podman binaries for linux/amd64 and linux/arm64/v8 machines along with its dependencies _(without systemd support)_:
-* [podman](https://github.com/containers/podman)
+* [podman](https://github.com/podman-container-tools/podman)
 * [crun](https://github.com/containers/crun)
 * [runc](https://github.com/opencontainers/runc/)
 * [conmon](https://github.com/containers/conmon)
@@ -68,18 +68,16 @@ sudo cp -r podman-linux-amd64/usr podman-linux-amd64/etc /
 _If you have docker installed on the same host it might be broken until you remove the newly installed `/usr/local/bin/runc` binary since older docker versions are not compatible with the latest runc version provided here while podman is also compatible with the older runc version that comes e.g. with docker 1.19 on Ubuntu._
 
 To install podman on a host without having any root privileges, you need to copy the binaries and configuration into your home directory and adjust the binary paths within the configuration correspondingly.
-For more information see [podman's rootless installation instructions](https://github.com/containers/podman/blob/main/docs/tutorials/rootless_tutorial.md).
+For more information see [podman's rootless installation instructions](https://github.com/podman-container-tools/podman/blob/main/docs/tutorials/rootless_tutorial.md).
 
 ### Host configuration
 
 #### Additional binaries
 
 The following binaries should be installed on your host:
-* `iptables`
+* `nftables` (with `iptables-nft` wrapper if `iptables` compatibility is needed)
 * `nsenter`
-* `uidmap` (for rootless mode)
-
-[nftables](https://netfilter.org/projects/nftables/) (with or without optional iptables-nft wrapper) to be included in the future [WIP](https://github.com/containers/netavark/pull/883).  
+* `shadow` / `shadow-utils` providing `newuidmap` and `newgidmap` (for rootless mode, package `uidmap` on Debian/Ubuntu)  
 
 #### UID/GID mapping
 
@@ -93,7 +91,7 @@ _Please make sure you don't add the mapping multiple times._
 #### apparmor profile
 
 On an apparmor-enabled host such as Ubuntu >=23.10, podman may fail with `reexec: Permission denied` the first time it is run.
-In that case you have to change your podman apparmor profile at `/etc/apparmor.d/podman` so that it also applies to `/usr/local/bin/podman` as follows (also see [here](https://github.com/containers/podman/issues/24642#issuecomment-2582629496)):
+In that case you have to change your podman apparmor profile at `/etc/apparmor.d/podman` so that it also applies to `/usr/local/bin/podman` as follows (also see [here](https://github.com/podman-container-tools/podman/issues/24642#issuecomment-2582629496)):
 ```sh
 sudo sed -Ei 's!^profile podman /usr/bin/podman !profile podman /usr/{bin,local/bin}/podman !' /etc/apparmor.d/podman
 ```
@@ -144,7 +142,7 @@ Next, remove all the copied binaries and support files from the following folder
 
 ```sh
 sudo rm -rf /etc/containers/*
-sudo rm -rf /usr/local/bin/{crun,fuse-overlayfs,fusermount3,passt,pasta,pasta.avx2,podman,runc}
+sudo rm -rf /usr/local/bin/{crun,fuse-overlayfs,fusermount3,pasta,pasta.avx2,podman,runc}
 sudo rm -rf /usr/local/{lib,libexec}/podman
 sudo rm -rf /usr/local/lib/systemd/{system,user}/podman*
 sudo rm /usr/local/lib/systemd/{system,user}-generators/podman-*-generator
