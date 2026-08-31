@@ -183,7 +183,7 @@ run-server: podman-ssh
 			podman system service -t 0 unix:///tmp/podman/podman.sock'
 
 # TODO: fix build run for external client
-# see ssh connection: https://github.com/containers/podman/blob/v2.0.4/pkg/bindings/connection.go#L73
+# see ssh connection: https://github.com/podman-container-tools/podman/blob/v2.0.4/pkg/bindings/connection.go#L73
 run-client: podman-remote
 	$(DOCKER) run --rm -it --network=host \
 		-v "`pwd`/test:/build" \

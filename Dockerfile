@@ -37,10 +37,9 @@ ARG PODMAN_CGO=1
 RUN git clone -c 'advice.detachedHead=false' --depth=1 --branch ${PODMAN_VERSION} https://github.com/podman-container-tools/podman src/github.com/containers/podman
 WORKDIR $GOPATH/src/github.com/containers/podman
 RUN set -eux; \
-	COMMON_VERSION=$(grep -Eom1 '(github.com/containers/common|go.podman.io/common) [^ ]+' go.mod | awk '{print $2}' | sed 's/^v//'); \
+	COMMON_VERSION=$(grep -Eom1 'go.podman.io/common [^ ]+' go.mod | awk '{print $2}'); \
 	mkdir -p /etc/containers; \
-	curl -fsSL "https://raw.githubusercontent.com/containers/common/v${COMMON_VERSION}/pkg/seccomp/seccomp.json" > /etc/containers/seccomp.json || \
-	curl -fsSL "https://raw.githubusercontent.com/containers/common/main/pkg/seccomp/seccomp.json" > /etc/containers/seccomp.json
+	curl -fsSL "https://raw.githubusercontent.com/podman-container-tools/container-libs/common/${COMMON_VERSION}/common/pkg/seccomp/seccomp.json" > /etc/containers/seccomp.json
 RUN set -ex; \
 	export CGO_ENABLED=$PODMAN_CGO; \
 	make bin/podman LDFLAGS_PODMAN="-s -w -extldflags '-static'" BUILDTAGS='${PODMAN_BUILDTAGS}'; \
