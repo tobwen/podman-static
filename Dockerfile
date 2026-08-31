@@ -171,6 +171,7 @@ COPY --from=podman /comp /usr/local/share
 COPY --from=passt /passt/bin/ /usr/local/bin/
 COPY --from=netavark /netavark/target/release/netavark /usr/local/lib/podman/netavark
 COPY conf/containers /etc/containers
+COPY --from=podman /go/src/github.com/containers/podman/vendor/go.podman.io/storage/storage.conf /etc/containers/storage.conf
 RUN set -ex; \
 	adduser -D podman -h /podman -u 1000; \
 	echo 'podman:1:999' > /etc/subuid; \
